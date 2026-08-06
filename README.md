@@ -23,7 +23,7 @@
 ### Quick One-Liner (Pre-compiled Binary)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Praveensenpai/cxm/main/install.sh | bash
+curl -4 -sSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/Praveensenpai/cxm/main/install.sh | bash
 ```
 
 ### Build from Source
