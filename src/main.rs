@@ -2,14 +2,16 @@ mod account;
 
 use account::*;
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use colored::Colorize;
 use inquire::Select;
+use std::io;
 
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.1.0")]
+#[command(version = "0.1.1")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -35,6 +37,11 @@ enum Commands {
         /// Account name or email to remove
         account: String,
     },
+    /// Generate shell autocompletion scripts (bash, zsh, fish, powershell, elvish)
+    Completions {
+        /// Target shell for autocompletions
+        shell: Shell,
+    },
 }
 
 fn main() -> Result<()> {
@@ -51,6 +58,10 @@ fn main() -> Result<()> {
         }
         Some(Commands::List) => list_all_accounts()?,
         Some(Commands::Remove { account }) => remove_account(&account)?,
+        Some(Commands::Completions { shell }) => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "cxm", &mut io::stdout());
+        }
         None => interactive_switch()?,
     }
 
@@ -118,10 +129,11 @@ fn list_all_accounts() -> Result<()> {
 
     println!("{}", "Saved Codex Accounts:".bold().underline());
     for acc in accounts {
+        let email_str = acc.email.as_deref().unwrap_or(&acc.name);
         if acc.is_active {
-            println!("  {} {} {}", "*".green().bold(), acc.name.bold().cyan(), "(active)".green());
+            println!("  {} {} ({}) {}", "*".green().bold(), acc.name.bold().cyan(), email_str, "(active)".green());
         } else {
-            println!("    {}", acc.name);
+            println!("    {} ({})", acc.name, email_str);
         }
     }
 

@@ -11,7 +11,7 @@ pub struct AccountInfo {
     pub name: String,
     pub email: Option<String>,
     pub is_active: bool,
-    pub file_path: PathBuf,
+    pub _file_path: PathBuf,
 }
 
 pub fn get_codex_dir() -> Result<PathBuf> {
@@ -123,7 +123,7 @@ pub fn list_accounts() -> Result<Vec<AccountInfo>> {
                     name: stem.to_string(),
                     email,
                     is_active,
-                    file_path: path,
+                    _file_path: path,
                 });
             }
         }

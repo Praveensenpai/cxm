@@ -12,6 +12,7 @@
 * 🔑 **Automatic JWT Parsing**: Decodes account email dynamically from your Codex `auth.json` token.
 * 🎯 **Interactive TUI Selector**: Select saved accounts with arrow keys using `inquire`.
 * 🛠️ **CLI Subcommands**: Full CLI support for scripting (`cxm switch`, `cxm save`, `cxm list`, `cxm remove`).
+* 🐚 **Shell Autocompletions**: Native autocompletion support for `bash`, `zsh`, and `fish`.
 * 📦 **Single Standalone Binary**: Zero runtime dependencies.
 
 ---
@@ -31,6 +32,37 @@ git clone https://github.com/Praveensenpai/cxm.git
 cd cxm
 chmod +x install.sh
 ./install.sh
+```
+
+---
+
+## ⚡ Shell Autocompletions Setup
+
+`install.sh` automatically installs completions for `bash`, `zsh`, and `fish`.
+
+If installing manually from source or via `cargo install`, generate completions for your shell:
+
+### Bash
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+cxm completions bash > ~/.local/share/bash-completion/completions/cxm
+```
+
+### Zsh
+```bash
+mkdir -p ~/.zsh/completion
+cxm completions zsh > ~/.zsh/completion/_cxm
+```
+Add the following to your `~/.zshrc` if not already present:
+```zsh
+fpath=(~/.zsh/completion $fpath)
+autoload -U compinit && compinit
+```
+
+### Fish
+```bash
+mkdir -p ~/.config/fish/completions
+cxm completions fish > ~/.config/fish/completions/cxm.fish
 ```
 
 ---
