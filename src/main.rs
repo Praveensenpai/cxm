@@ -19,10 +19,6 @@ struct Cli {
     /// Account name or email to switch to directly
     account: Option<String>,
 
-    /// Bypass quota cache and fetch live quota from backend API
-    #[arg(short = 'n', long = "no-cache", global = true)]
-    no_cache: bool,
-
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -57,7 +53,7 @@ fn main() -> Result<()> {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, "cxm", &mut io::stdout());
         }
-        None => ui::run_accounts_tui(cli.no_cache)?,
+        None => ui::run_accounts_tui()?,
     }
 
     Ok(())
