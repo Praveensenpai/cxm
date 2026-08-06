@@ -137,7 +137,11 @@ pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
         }
     }
 
-    accounts.sort_by(|a, b| a.name.cmp(&b.name));
+    accounts.sort_by(|a, b| {
+        let rem_a = a.quota.as_ref().map(|q| q.remaining_percent()).unwrap_or(0);
+        let rem_b = b.quota.as_ref().map(|q| q.remaining_percent()).unwrap_or(0);
+        rem_b.cmp(&rem_a).then_with(|| a.name.cmp(&b.name))
+    });
     Ok(accounts)
 }
 
