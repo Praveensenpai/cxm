@@ -1,4 +1,4 @@
-use crate::quota::{fetch_quota_for_auth_file, QuotaInfo};
+use crate::quota::{fetch_quota_cached, QuotaInfo};
 use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
@@ -105,7 +105,7 @@ pub fn save_current_account(alias: Option<&str>) -> Result<String> {
     Ok(account_name)
 }
 
-pub fn list_accounts() -> Result<Vec<AccountInfo>> {
+pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
     let accounts_dir = get_accounts_dir()?;
     if !accounts_dir.exists() {
         return Ok(Vec::new());
@@ -119,9 +119,12 @@ pub fn list_accounts() -> Result<Vec<AccountInfo>> {
         let path = entry.path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if stem.starts_with('.') {
+                    continue;
+                }
                 let email = extract_email_from_auth_file(&path);
                 let is_active = active_account.as_deref() == Some(stem);
-                let quota = fetch_quota_for_auth_file(&path).ok();
+                let quota = fetch_quota_cached(stem, &path, no_cache).ok();
                 accounts.push(AccountInfo {
                     name: stem.to_string(),
                     _email: email,

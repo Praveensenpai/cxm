@@ -1,13 +1,19 @@
 use anyhow::{anyhow, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone)]
+const CACHE_TTL_SECONDS: u64 = 300; // 5 minutes
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuotaInfo {
     pub plan_type: String,
     pub used_percent: u32,
     pub limit_reached: bool,
+    #[serde(default)]
+    pub fetched_at: u64,
 }
 
 impl QuotaInfo {
@@ -27,6 +33,68 @@ impl QuotaInfo {
             format!("[{} | {}% left]", self.plan_type, rem)
         }
     }
+
+    pub fn is_expired(&self) -> bool {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        now.saturating_sub(self.fetched_at) > CACHE_TTL_SECONDS
+    }
+}
+
+pub fn get_cache_file_path() -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    Some(home.join(".codex-accounts").join(".quota_cache.json"))
+}
+
+pub fn load_quota_cache() -> HashMap<String, QuotaInfo> {
+    let path = match get_cache_file_path() {
+        Some(p) => p,
+        None => return HashMap::new(),
+    };
+
+    if !path.exists() {
+        return HashMap::new();
+    }
+
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|content| serde_json::from_str(&content).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_quota_cache(cache: &HashMap<String, QuotaInfo>) {
+    if let Some(path) = get_cache_file_path() {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(content) = serde_json::to_string_pretty(cache) {
+            let _ = fs::write(path, content);
+        }
+    }
+}
+
+pub fn fetch_quota_cached(
+    account_key: &str,
+    auth_path: &Path,
+    no_cache: bool,
+) -> Result<QuotaInfo> {
+    let mut cache = load_quota_cache();
+
+    if !no_cache {
+        if let Some(cached) = cache.get(account_key) {
+            if !cached.is_expired() {
+                return Ok(cached.clone());
+            }
+        }
+    }
+
+    let quota = fetch_quota_live(auth_path)?;
+    cache.insert(account_key.to_string(), quota.clone());
+    save_quota_cache(&cache);
+
+    Ok(quota)
 }
 
 #[derive(Deserialize)]
@@ -46,7 +114,7 @@ struct PrimaryWindow {
     used_percent: Option<u32>,
 }
 
-pub fn fetch_quota_for_auth_file(auth_path: &Path) -> Result<QuotaInfo> {
+fn fetch_quota_live(auth_path: &Path) -> Result<QuotaInfo> {
     let content = fs::read_to_string(auth_path)?;
     let json: serde_json::Value = serde_json::from_str(&content)?;
     let access_token = json
@@ -71,9 +139,15 @@ pub fn fetch_quota_for_auth_file(auth_path: &Path) -> Result<QuotaInfo> {
         .and_then(|w| w.used_percent)
         .unwrap_or(0);
 
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
     Ok(QuotaInfo {
         plan_type,
         used_percent,
         limit_reached,
+        fetched_at: now,
     })
 }

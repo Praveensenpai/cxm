@@ -10,6 +10,9 @@
 
 * 🚀 **Instant Account Switching**: Switch Codex accounts in <10ms without logging out.
 * 🔑 **Automatic JWT Parsing**: Decodes account email dynamically from your Codex `auth.json` token.
+* 📊 **Live Quota & Usage Display**: Shows plan type and remaining usage % next to accounts.
+* ⚡ **Smart 5-Minute Quota Cache**: Caches usage metrics locally in `~/.codex-accounts/.quota_cache.json` for instant UI execution.
+* 🔄 **Cache Bypass**: Supports `--no-cache` (`-n`) to force refreshing live quota on demand.
 * ➕ **Seamless New Session Flow**: Backs up your active session so you can log into a new account with zero setup.
 * 🎯 **Interactive TUI Selector**: Select saved accounts with arrow keys using `inquire`.
 * 🛠️ **CLI Subcommands**: Full CLI support for scripting (`cxm switch`, `cxm new`, `cxm save`, `cxm list`, `cxm remove`).
@@ -77,7 +80,16 @@ Run `cxm` with no arguments to open the interactive selection menu:
 cxm
 ```
 
-### 2. Log in to a New Account
+### 2. Bypass Quota Cache
+Force fetching fresh live quota directly from the backend API:
+
+```bash
+cxm --no-cache
+# or
+cxm list --no-cache
+```
+
+### 3. Log in to a New Account
 Back up your current session and prepare a fresh session to log into a new account:
 
 ```bash
@@ -85,7 +97,7 @@ cxm new # (or cxm add)
 ```
 Then log in via `codex`, and run `cxm save` (or `cxm`) when finished to auto-detect and save your new account!
 
-### 3. Save Current Account Session
+### 4. Save Current Account Session
 Save your currently active Codex login session:
 
 ```bash
@@ -96,21 +108,21 @@ cxm save
 cxm save work-account
 ```
 
-### 4. Switch Account
+### 5. Switch Account
 Switch to a saved account directly by name or email:
 
 ```bash
 cxm switch user@example.com
 ```
 
-### 5. List Accounts
+### 6. List Accounts
 List all saved account profiles:
 
 ```bash
 cxm list
 ```
 
-### 6. Remove Account
+### 7. Remove Account
 Delete a saved account profile:
 
 ```bash

@@ -12,9 +12,13 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.2.0")]
+#[command(version = "0.2.1")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
+    /// Bypass quota cache and fetch live quota from backend API
+    #[arg(short = 'n', long = "no-cache", global = true)]
+    no_cache: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -35,7 +39,11 @@ enum Commands {
     #[command(alias = "add")]
     New,
     /// List all saved Codex accounts with usage quota
-    List,
+    List {
+        /// Bypass quota cache and fetch live quota from backend API
+        #[arg(short = 'n', long = "no-cache")]
+        no_cache: bool,
+    },
     /// Remove a saved Codex account
     Remove {
         /// Account name or email to remove
@@ -54,27 +62,27 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Switch { account }) => match account {
             Some(name) => switch_account(&name)?,
-            None => interactive_switch()?,
+            None => interactive_switch(cli.no_cache)?,
         },
         Some(Commands::Save { alias }) => {
             let name = save_current_account(alias.as_deref())?;
             println!("{} Saved current Codex account as '{}'", "✔".green().bold(), name.bold().cyan());
         }
         Some(Commands::New) => prepare_new_session()?,
-        Some(Commands::List) => list_all_accounts()?,
+        Some(Commands::List { no_cache }) => list_all_accounts(cli.no_cache || no_cache)?,
         Some(Commands::Remove { account }) => remove_account(&account)?,
         Some(Commands::Completions { shell }) => {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, "cxm", &mut io::stdout());
         }
-        None => interactive_switch()?,
+        None => interactive_switch(cli.no_cache)?,
     }
 
     Ok(())
 }
 
-fn interactive_switch() -> Result<()> {
-    let accounts = list_accounts()?;
+fn interactive_switch(no_cache: bool) -> Result<()> {
+    let accounts = list_accounts(no_cache)?;
 
     if accounts.is_empty() {
         println!("{}", "No saved Codex accounts found.".yellow());
@@ -137,8 +145,8 @@ fn interactive_switch() -> Result<()> {
     Ok(())
 }
 
-fn list_all_accounts() -> Result<()> {
-    let accounts = list_accounts()?;
+fn list_all_accounts(no_cache: bool) -> Result<()> {
+    let accounts = list_accounts(no_cache)?;
 
     if accounts.is_empty() {
         println!("{}", "No saved accounts.".yellow());
