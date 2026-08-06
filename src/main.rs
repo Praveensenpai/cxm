@@ -14,9 +14,12 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.3.0")]
+#[command(version = "0.4.0")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
+    /// Account name or email to switch to directly
+    account: Option<String>,
+
     /// Bypass quota cache and fetch live quota from backend API
     #[arg(short = 'n', long = "no-cache", global = true)]
     no_cache: bool,
@@ -27,11 +30,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Switch to a Codex account interactively or by name
-    Switch {
-        /// Account name or email to switch to
-        account: Option<String>,
-    },
     /// Save current Codex auth state as a named account profile
     Save {
         /// Optional alias for account (defaults to JWT email)
@@ -49,11 +47,6 @@ enum Commands {
         #[arg(short = 'n', long = "no-cache")]
         no_cache: bool,
     },
-    /// Remove a saved Codex account
-    Remove {
-        /// Account name or email to remove
-        account: String,
-    },
     /// Generate shell autocompletion scripts (bash, zsh, fish, powershell, elvish)
     Completions {
         /// Target shell for autocompletions
@@ -64,11 +57,11 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    if let Some(target) = cli.account {
+        return switch_account(&target);
+    }
+
     match cli.command {
-        Some(Commands::Switch { account }) => match account {
-            Some(name) => switch_account(&name)?,
-            None => interactive_switch(cli.no_cache)?,
-        },
         Some(Commands::Save { alias }) => {
             let name = save_current_account(alias.as_deref())?;
             println!("{} Saved current Codex account as '{}'", "✔".green().bold(), name.bold().cyan());
@@ -76,7 +69,6 @@ fn main() -> Result<()> {
         Some(Commands::New) => prepare_new_session()?,
         Some(Commands::Sessions) => pick_and_resume_session()?,
         Some(Commands::List { no_cache }) => list_all_accounts(cli.no_cache || no_cache)?,
-        Some(Commands::Remove { account }) => remove_account(&account)?,
         Some(Commands::Completions { shell }) => {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, "cxm", &mut io::stdout());
@@ -110,6 +102,7 @@ fn interactive_switch(no_cache: bool) -> Result<()> {
 
     options.push("💾 Save Current Account".blue().to_string());
     options.push("➕ New Session (Log into new account)".yellow().to_string());
+    options.push("🗑️ Delete Account".red().to_string());
 
     let ans = Select::new("Select Codex Action / Account:", options).prompt();
 
@@ -122,6 +115,8 @@ fn interactive_switch(no_cache: bool) -> Result<()> {
                 println!("{} Saved active account as '{}'", "✔".green().bold(), name.bold().cyan());
             } else if choice.contains("New Session") {
                 prepare_new_session()?;
+            } else if choice.contains("Delete Account") {
+                interactive_remove_account()?;
             } else {
                 let clean_name = choice
                     .split_whitespace()

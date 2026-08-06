@@ -3,6 +3,7 @@ use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use colored::Colorize;
+use inquire::Select;
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -141,8 +142,18 @@ pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
 }
 
 pub fn switch_account(account_name: &str) -> Result<()> {
+    let accounts = list_accounts(false)?;
+    let target = accounts
+        .iter()
+        .find(|acc| acc.name.to_lowercase().contains(&account_name.to_lowercase()));
+
+    let target_name = match target {
+        Some(acc) => &acc.name,
+        None => account_name,
+    };
+
     let accounts_dir = get_accounts_dir()?;
-    let target_path = accounts_dir.join(format!("{}.json", account_name));
+    let target_path = accounts_dir.join(format!("{}.json", target_name));
 
     if !target_path.exists() {
         return Err(anyhow!("Account '{}' not found in saved accounts", account_name));
@@ -155,8 +166,8 @@ pub fn switch_account(account_name: &str) -> Result<()> {
     fs::copy(&target_path, &auth_path)
         .with_context(|| format!("Failed to copy account auth to {:?}", auth_path))?;
 
-    set_current_active_account(account_name)?;
-    println!("{} Switched to account: {}", "✔".green().bold(), account_name.bold().cyan());
+    set_current_active_account(target_name)?;
+    println!("{} Switched to account: {}", "✔".green().bold(), target_name.bold().cyan());
     Ok(())
 }
 
@@ -170,6 +181,28 @@ pub fn remove_account(account_name: &str) -> Result<()> {
 
     fs::remove_file(&target_path)?;
     println!("{} Removed account: {}", "✔".green().bold(), account_name.bold().yellow());
+    Ok(())
+}
+
+pub fn interactive_remove_account() -> Result<()> {
+    let accounts = list_accounts(false)?;
+    if accounts.is_empty() {
+        println!("{}", "No saved accounts to remove.".yellow());
+        return Ok(());
+    }
+
+    let options: Vec<String> = accounts.iter().map(|acc| acc.name.clone()).collect();
+    let ans = Select::new("🗑️ Select Account to Delete:", options).prompt();
+
+    match ans {
+        Ok(selected) => {
+            remove_account(&selected)?;
+        }
+        Err(_) => {
+            println!("Operation cancelled.");
+        }
+    }
+
     Ok(())
 }
 
