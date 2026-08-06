@@ -14,12 +14,16 @@ use std::io;
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
 #[command(disable_version_flag = true)]
-#[command(version = "0.6.10")]
+#[command(version = "0.6.11")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     /// Show the application version
-    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
-    version: bool,
+    #[arg(
+        short = 'v',
+        long = "version",
+        action = clap::ArgAction::Version
+    )]
+    version: Option<bool>,
 
     /// Account name or email to switch to directly
     account: Option<String>,
