@@ -165,3 +165,26 @@ pub fn remove_account(account_name: &str) -> Result<()> {
     println!("{} Removed account: {}", "✔".green().bold(), account_name.bold().yellow());
     Ok(())
 }
+
+pub fn prepare_new_session() -> Result<()> {
+    let auth_path = get_active_auth_path()?;
+    if auth_path.exists() {
+        if let Ok(saved_name) = save_current_account(None) {
+            println!("{} Saved active session as '{}'", "✔".green().bold(), saved_name.bold().cyan());
+        }
+        let _ = fs::remove_file(&auth_path);
+    }
+
+    let accounts_dir = get_accounts_dir()?;
+    let current_file = accounts_dir.join(".current");
+    if current_file.exists() {
+        let _ = fs::remove_file(current_file);
+    }
+
+    println!("{} Prepared fresh login session.", "✨".bold());
+    println!("👉 Run {} to log in to your new account.", "codex".bold().yellow());
+    println!("👉 Run {} (or {}) when done to save it!", "cxm save".bold().cyan(), "cxm".bold().cyan());
+
+    Ok(())
+}
+

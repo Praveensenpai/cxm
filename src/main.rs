@@ -11,7 +11,7 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.1.1")]
+#[command(version = "0.1.2")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -30,6 +30,9 @@ enum Commands {
         /// Optional alias for account (defaults to JWT email)
         alias: Option<String>,
     },
+    /// Back up active account and prepare a fresh session to log in to a new account
+    #[command(alias = "add")]
+    New,
     /// List all saved Codex accounts
     List,
     /// Remove a saved Codex account
@@ -56,6 +59,7 @@ fn main() -> Result<()> {
             let name = save_current_account(alias.as_deref())?;
             println!("{} Saved current Codex account as '{}'", "✔".green().bold(), name.bold().cyan());
         }
+        Some(Commands::New) => prepare_new_session()?,
         Some(Commands::List) => list_all_accounts()?,
         Some(Commands::Remove { account }) => remove_account(&account)?,
         Some(Commands::Completions { shell }) => {
@@ -78,9 +82,9 @@ fn interactive_switch() -> Result<()> {
             Ok(name) => {
                 println!("{} Saved active account as '{}'", "✔".green().bold(), name.bold().cyan());
             }
-            Err(e) => {
-                println!("{} {}", "✘ Could not auto-save current account:".red(), e);
-                println!("Log in via Codex first, then run 'cxm save'");
+            Err(_) => {
+                println!("No active Codex auth session found. Preparing fresh session...");
+                prepare_new_session()?;
             }
         }
         return Ok(());
@@ -97,7 +101,8 @@ fn interactive_switch() -> Result<()> {
         })
         .collect();
 
-    options.push(" Save Current Account".blue().to_string());
+    options.push("💾 Save Current Account".blue().to_string());
+    options.push("➕ New Session (Log into new account)".yellow().to_string());
 
     let ans = Select::new("Select Codex Account:", options).prompt();
 
@@ -106,6 +111,8 @@ fn interactive_switch() -> Result<()> {
             if choice.contains("Save Current Account") {
                 let name = save_current_account(None)?;
                 println!("{} Saved active account as '{}'", "✔".green().bold(), name.bold().cyan());
+            } else if choice.contains("New Session") {
+                prepare_new_session()?;
             } else {
                 let clean_name = choice.replace(" (active)", "").trim().to_string();
                 switch_account(&clean_name)?;
