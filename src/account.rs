@@ -91,8 +91,11 @@ pub fn save_current_account(alias: Option<&str>) -> Result<String> {
 
     let account_name = match alias {
         Some(name) if !name.trim().is_empty() => name.trim().to_string(),
-        _ => extract_email_from_auth_file(&auth_path)
-            .ok_or_else(|| anyhow!("Could not extract email from id_token. Provide an alias with 'cxm save <alias>'"))?,
+        _ => extract_email_from_auth_file(&auth_path).ok_or_else(|| {
+            anyhow!(
+                "Could not extract email from id_token. Provide an alias with 'cxm save <alias>'"
+            )
+        })?,
     };
 
     let accounts_dir = get_accounts_dir()?;
@@ -147,9 +150,11 @@ pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
 
 pub fn switch_account(account_name: &str) -> Result<()> {
     let accounts = list_accounts(false)?;
-    let target = accounts
-        .iter()
-        .find(|acc| acc.name.to_lowercase().contains(&account_name.to_lowercase()));
+    let target = accounts.iter().find(|acc| {
+        acc.name
+            .to_lowercase()
+            .contains(&account_name.to_lowercase())
+    });
 
     let target_name = match target {
         Some(acc) => &acc.name,
@@ -160,7 +165,10 @@ pub fn switch_account(account_name: &str) -> Result<()> {
     let target_path = accounts_dir.join(format!("{}.json", target_name));
 
     if !target_path.exists() {
-        return Err(anyhow!("Account '{}' not found in saved accounts", account_name));
+        return Err(anyhow!(
+            "Account '{}' not found in saved accounts",
+            account_name
+        ));
     }
 
     let codex_dir = get_codex_dir()?;
@@ -171,7 +179,11 @@ pub fn switch_account(account_name: &str) -> Result<()> {
         .with_context(|| format!("Failed to copy account auth to {:?}", auth_path))?;
 
     set_current_active_account(target_name)?;
-    println!("{} Switched to account: {}", "✔".green().bold(), target_name.bold().cyan());
+    println!(
+        "{} Switched to account: {}",
+        "✔".green().bold(),
+        target_name.bold().cyan()
+    );
     Ok(())
 }
 
@@ -184,7 +196,11 @@ pub fn remove_account(account_name: &str) -> Result<()> {
     }
 
     fs::remove_file(&target_path)?;
-    println!("{} Removed account: {}", "✔".green().bold(), account_name.bold().yellow());
+    println!(
+        "{} Removed account: {}",
+        "✔".green().bold(),
+        account_name.bold().yellow()
+    );
     Ok(())
 }
 
@@ -214,7 +230,11 @@ pub fn prepare_new_session() -> Result<()> {
     let auth_path = get_active_auth_path()?;
     if auth_path.exists() {
         if let Ok(saved_name) = save_current_account(None) {
-            println!("{} Saved active session as '{}'", "✔".green().bold(), saved_name.bold().cyan());
+            println!(
+                "{} Saved active session as '{}'",
+                "✔".green().bold(),
+                saved_name.bold().cyan()
+            );
         }
         let _ = fs::remove_file(&auth_path);
     }
@@ -226,8 +246,15 @@ pub fn prepare_new_session() -> Result<()> {
     }
 
     println!("{} Prepared fresh login session.", "✨".bold());
-    println!("👉 Run {} to log in to your new account.", "codex".bold().yellow());
-    println!("👉 Run {} (or {}) when done to save it!", "cxm save".bold().cyan(), "cxm".bold().cyan());
+    println!(
+        "👉 Run {} to log in to your new account.",
+        "codex".bold().yellow()
+    );
+    println!(
+        "👉 Run {} (or {}) when done to save it!",
+        "cxm save".bold().cyan(),
+        "cxm".bold().cyan()
+    );
 
     Ok(())
 }

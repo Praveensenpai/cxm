@@ -135,7 +135,11 @@ pub fn scan_codex_sessions() -> Result<Vec<CodexSessionInfo>> {
                 datetime,
                 timestamp,
                 summary: sanitize_summary(&raw_prompt),
-                full_prompt: if full_prompt.is_empty() { "New Conversation".to_string() } else { full_prompt },
+                full_prompt: if full_prompt.is_empty() {
+                    "New Conversation".to_string()
+                } else {
+                    full_prompt
+                },
             }
         })
         .collect();

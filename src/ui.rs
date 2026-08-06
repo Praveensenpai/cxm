@@ -52,7 +52,10 @@ pub fn run_accounts_tui() -> Result<()> {
 
     let mut accounts = list_accounts(false)?;
 
-    let (tx, rx): (Sender<Vec<crate::account::AccountInfo>>, Receiver<Vec<crate::account::AccountInfo>>) = channel();
+    let (tx, rx): (
+        Sender<Vec<crate::account::AccountInfo>>,
+        Receiver<Vec<crate::account::AccountInfo>>,
+    ) = channel();
 
     if !accounts.is_empty() {
         state.select(Some(0));
@@ -71,9 +74,7 @@ pub fn run_accounts_tui() -> Result<()> {
             .iter()
             .enumerate()
             .filter_map(|(idx, acc)| {
-                if filter.is_empty()
-                    || acc.name.to_lowercase().contains(&filter.to_lowercase())
-                {
+                if filter.is_empty() || acc.name.to_lowercase().contains(&filter.to_lowercase()) {
                     Some(idx)
                 } else {
                     None
@@ -207,7 +208,9 @@ pub fn run_accounts_tui() -> Result<()> {
                 } else {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
-                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break Ok(()),
+                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            break Ok(())
+                        }
                         KeyCode::Char('/') => {
                             searching = true;
                         }
@@ -479,7 +482,9 @@ pub fn run_sessions_tui() -> Result<()> {
                 } else {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
-                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break Ok(()),
+                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            break Ok(())
+                        }
                         KeyCode::Char('/') => {
                             searching = true;
                         }

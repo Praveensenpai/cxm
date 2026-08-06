@@ -148,7 +148,10 @@ fn fetch_quota_live(auth_path: &Path) -> Result<QuotaInfo> {
     let wham: WhamResponse = resp.into_json()?;
     let plan_type = wham.plan_type.unwrap_or_else(|| "free".to_string());
     let rate_limit = wham.rate_limit;
-    let limit_reached = rate_limit.as_ref().and_then(|r| r.limit_reached).unwrap_or(false);
+    let limit_reached = rate_limit
+        .as_ref()
+        .and_then(|r| r.limit_reached)
+        .unwrap_or(false);
     let used_percent = rate_limit
         .as_ref()
         .and_then(|r| r.primary_window.as_ref())

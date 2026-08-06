@@ -13,9 +13,14 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.6.8")]
+#[command(disable_version_flag = true)]
+#[command(version = "0.6.9")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
+    /// Show the application version
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: bool,
+
     /// Account name or email to switch to directly
     account: Option<String>,
 
@@ -47,7 +52,11 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Save { alias }) => {
             let name = save_current_account(alias.as_deref())?;
-            println!("{} Saved current Codex account as '{}'", "✔".green().bold(), name.bold().cyan());
+            println!(
+                "{} Saved current Codex account as '{}'",
+                "✔".green().bold(),
+                name.bold().cyan()
+            );
         }
         Some(Commands::Completions { shell }) => {
             let mut cmd = Cli::command();
