@@ -8,8 +8,6 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use colored::Colorize;
-use inquire::Select;
-use session::*;
 use std::io;
 
 #[derive(Parser)]
@@ -39,9 +37,6 @@ enum Commands {
     /// Back up active account and prepare a fresh session to log in to a new account
     #[command(alias = "add")]
     New,
-    /// Pick and resume a previous Codex chat session
-    #[command(alias = "s")]
-    Sessions,
     /// List all saved Codex accounts with usage quota
     List {
         /// Bypass quota cache and fetch live quota from backend API
@@ -68,68 +63,12 @@ fn main() -> Result<()> {
             println!("{} Saved current Codex account as '{}'", "✔".green().bold(), name.bold().cyan());
         }
         Some(Commands::New) => prepare_new_session()?,
-        Some(Commands::Sessions) => ui::run_sessions_tui()?,
         Some(Commands::List { no_cache }) => list_all_accounts(cli.no_cache || no_cache)?,
         Some(Commands::Completions { shell }) => {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, "cxm", &mut io::stdout());
         }
         None => ui::run_accounts_tui(cli.no_cache)?,
-    }
-
-    Ok(())
-}
-
-fn interactive_switch(no_cache: bool) -> Result<()> {
-    let accounts = list_accounts(no_cache)?;
-
-    let mut options: Vec<String> = Vec::new();
-
-    options.push("💬 Jump to Session".magenta().bold().to_string());
-
-    for acc in &accounts {
-        let quota_badge = acc
-            .quota
-            .as_ref()
-            .map(|q| q.display_badge())
-            .unwrap_or_default();
-
-        if acc.is_active {
-            options.push(format!("{} {} {}", acc.name, "(active)".green().bold(), quota_badge.dimmed()));
-        } else {
-            options.push(format!("{} {}", acc.name, quota_badge.dimmed()));
-        }
-    }
-
-    options.push("💾 Save Current Account".blue().to_string());
-    options.push("➕ New Session (Log into new account)".yellow().to_string());
-    options.push("🗑️ Delete Account".red().to_string());
-
-    let ans = Select::new("Select Codex Action / Account:", options).prompt();
-
-    match ans {
-        Ok(choice) => {
-            if choice.contains("Jump to Session") {
-                pick_and_resume_session()?;
-            } else if choice.contains("Save Current Account") {
-                let name = save_current_account(None)?;
-                println!("{} Saved active account as '{}'", "✔".green().bold(), name.bold().cyan());
-            } else if choice.contains("New Session") {
-                prepare_new_session()?;
-            } else if choice.contains("Delete Account") {
-                interactive_remove_account()?;
-            } else {
-                let clean_name = choice
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("")
-                    .to_string();
-                switch_account(&clean_name)?;
-            }
-        }
-        Err(_) => {
-            println!("Operation cancelled.");
-        }
     }
 
     Ok(())
