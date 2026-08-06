@@ -1,3 +1,4 @@
+use crate::quota::{fetch_quota_for_auth_file, QuotaInfo};
 use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
@@ -9,8 +10,9 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct AccountInfo {
     pub name: String,
-    pub email: Option<String>,
+    pub _email: Option<String>,
     pub is_active: bool,
+    pub quota: Option<QuotaInfo>,
     pub _file_path: PathBuf,
 }
 
@@ -119,10 +121,12 @@ pub fn list_accounts() -> Result<Vec<AccountInfo>> {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                 let email = extract_email_from_auth_file(&path);
                 let is_active = active_account.as_deref() == Some(stem);
+                let quota = fetch_quota_for_auth_file(&path).ok();
                 accounts.push(AccountInfo {
                     name: stem.to_string(),
-                    email,
+                    _email: email,
                     is_active,
+                    quota,
                     _file_path: path,
                 });
             }
@@ -187,4 +191,3 @@ pub fn prepare_new_session() -> Result<()> {
 
     Ok(())
 }
-

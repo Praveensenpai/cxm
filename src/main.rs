@@ -1,4 +1,5 @@
 mod account;
+mod quota;
 
 use account::*;
 use anyhow::Result;
@@ -11,7 +12,7 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.1.4")]
+#[command(version = "0.2.0")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -33,7 +34,7 @@ enum Commands {
     /// Back up active account and prepare a fresh session to log in to a new account
     #[command(alias = "add")]
     New,
-    /// List all saved Codex accounts
+    /// List all saved Codex accounts with usage quota
     List,
     /// Remove a saved Codex account
     Remove {
@@ -93,10 +94,16 @@ fn interactive_switch() -> Result<()> {
     let mut options: Vec<String> = accounts
         .iter()
         .map(|acc| {
+            let quota_badge = acc
+                .quota
+                .as_ref()
+                .map(|q| q.display_badge())
+                .unwrap_or_default();
+
             if acc.is_active {
-                format!("{} {}", acc.name, "(active)".green().bold())
+                format!("{} {} {}", acc.name, "(active)".green().bold(), quota_badge.dimmed())
             } else {
-                acc.name.clone()
+                format!("{} {}", acc.name, quota_badge.dimmed())
             }
         })
         .collect();
@@ -114,7 +121,11 @@ fn interactive_switch() -> Result<()> {
             } else if choice.contains("New Session") {
                 prepare_new_session()?;
             } else {
-                let clean_name = choice.replace(" (active)", "").trim().to_string();
+                let clean_name = choice
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
                 switch_account(&clean_name)?;
             }
         }
@@ -136,11 +147,22 @@ fn list_all_accounts() -> Result<()> {
 
     println!("{}", "Saved Codex Accounts:".bold().underline());
     for acc in accounts {
-        let email_str = acc.email.as_deref().unwrap_or(&acc.name);
+        let quota_badge = acc
+            .quota
+            .as_ref()
+            .map(|q| q.display_badge().cyan().to_string())
+            .unwrap_or_else(|| "[quota unavailable]".dimmed().to_string());
+
         if acc.is_active {
-            println!("  {} {} ({}) {}", "*".green().bold(), acc.name.bold().cyan(), email_str, "(active)".green());
+            println!(
+                "  {} {} {} {}",
+                "*".green().bold(),
+                acc.name.bold().magenta(),
+                "(active)".green(),
+                quota_badge
+            );
         } else {
-            println!("    {} ({})", acc.name, email_str);
+            println!("    {} {}", acc.name, quota_badge);
         }
     }
 
