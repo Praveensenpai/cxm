@@ -1,6 +1,6 @@
 [package]
 name = "cxm"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Praveensenpai"]
 description = "Codex Account Manager & Switcher CLI"
@@ -16,3 +16,4 @@ colored = "2.1"
 anyhow = "1.0"
 dirs = "5.0"
 ureq = { version = "2.9", features = ["json"] }
+chrono = "0.4"

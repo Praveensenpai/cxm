@@ -12,7 +12,7 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.2.1")]
+#[command(version = "0.2.2")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     /// Bypass quota cache and fetch live quota from backend API
@@ -82,6 +82,10 @@ fn main() -> Result<()> {
 }
 
 fn interactive_switch(no_cache: bool) -> Result<()> {
+    if no_cache {
+        println!("{}", "⏳ Fetching live account quotas from backend API...".yellow());
+    }
+
     let accounts = list_accounts(no_cache)?;
 
     if accounts.is_empty() {
@@ -146,6 +150,10 @@ fn interactive_switch(no_cache: bool) -> Result<()> {
 }
 
 fn list_all_accounts(no_cache: bool) -> Result<()> {
+    if no_cache {
+        println!("{}", "⏳ Fetching live account quotas from backend API...".yellow());
+    }
+
     let accounts = list_accounts(no_cache)?;
 
     if accounts.is_empty() {
@@ -154,11 +162,22 @@ fn list_all_accounts(no_cache: bool) -> Result<()> {
     }
 
     println!("{}", "Saved Codex Accounts:".bold().underline());
-    for acc in accounts {
+    let mut latest_fetch_time: Option<String> = None;
+    let mut is_any_fresh = false;
+
+    for acc in &accounts {
         let quota_badge = acc
             .quota
             .as_ref()
-            .map(|q| q.display_badge().cyan().to_string())
+            .map(|q| {
+                if q.is_fresh {
+                    is_any_fresh = true;
+                }
+                if latest_fetch_time.is_none() || q.is_fresh {
+                    latest_fetch_time = Some(q.formatted_time());
+                }
+                q.display_badge().cyan().to_string()
+            })
             .unwrap_or_else(|| "[quota unavailable]".dimmed().to_string());
 
         if acc.is_active {
@@ -171,6 +190,25 @@ fn list_all_accounts(no_cache: bool) -> Result<()> {
             );
         } else {
             println!("    {} {}", acc.name, quota_badge);
+        }
+    }
+
+    if let Some(timestamp) = latest_fetch_time {
+        println!();
+        if is_any_fresh {
+            println!(
+                "{} Quota data: {} • Updated: {}",
+                "ℹ".blue().bold(),
+                "fresh (live)".green().bold(),
+                timestamp.bold()
+            );
+        } else {
+            println!(
+                "{} Quota data: {} • Last updated: {}",
+                "ℹ".blue().bold(),
+                "cached (5-min TTL)".yellow(),
+                timestamp.dimmed()
+            );
         }
     }
 

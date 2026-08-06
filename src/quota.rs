@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -14,6 +15,8 @@ pub struct QuotaInfo {
     pub limit_reached: bool,
     #[serde(default)]
     pub fetched_at: u64,
+    #[serde(skip)]
+    pub is_fresh: bool,
 }
 
 impl QuotaInfo {
@@ -40,6 +43,17 @@ impl QuotaInfo {
             .unwrap_or_default()
             .as_secs();
         now.saturating_sub(self.fetched_at) > CACHE_TTL_SECONDS
+    }
+
+    pub fn formatted_time(&self) -> String {
+        let naive = DateTime::from_timestamp(self.fetched_at as i64, 0);
+        match naive {
+            Some(utc) => {
+                let local: DateTime<Local> = DateTime::from(utc);
+                local.format("%Y-%m-%d %H:%M:%S").to_string()
+            }
+            None => "unknown time".to_string(),
+        }
     }
 }
 
@@ -83,14 +97,16 @@ pub fn fetch_quota_cached(
     let mut cache = load_quota_cache();
 
     if !no_cache {
-        if let Some(cached) = cache.get(account_key) {
+        if let Some(mut cached) = cache.get(account_key).cloned() {
             if !cached.is_expired() {
-                return Ok(cached.clone());
+                cached.is_fresh = false;
+                return Ok(cached);
             }
         }
     }
 
-    let quota = fetch_quota_live(auth_path)?;
+    let mut quota = fetch_quota_live(auth_path)?;
+    quota.is_fresh = true;
     cache.insert(account_key.to_string(), quota.clone());
     save_quota_cache(&cache);
 
@@ -149,5 +165,6 @@ fn fetch_quota_live(auth_path: &Path) -> Result<QuotaInfo> {
         used_percent,
         limit_reached,
         fetched_at: now,
+        is_fresh: true,
     })
 }
