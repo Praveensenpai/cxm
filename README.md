@@ -23,7 +23,7 @@
 ### Quick One-Liner (Pre-compiled Binary)
 
 ```bash
-curl -4 -sSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/Praveensenpai/cxm/main/install.sh | bash
+curl -sSL -H "Accept: application/vnd.github.v3.raw" https://api.github.com/repos/Praveensenpai/cxm/contents/install.sh | bash
 ```
 
 ### Build from Source
