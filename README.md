@@ -2,20 +2,21 @@
 
 > Ultra-fast Codex Account Manager & Instant Switcher written in Rust.
 
-`cxm` allows you to switch between multiple Codex accounts instantly without logging out.
+`cxm` allows you to switch between multiple Codex accounts instantly without logging out and jump directly into previous chat sessions.
 
 ---
 
 ## ⚡ Features
 
 * 🚀 **Instant Account Switching**: Switch Codex accounts in <10ms without logging out.
+* 💬 **Session Explorer**: Browse and jump directly into previous Codex sessions via `codex resume`.
 * 🔑 **Automatic JWT Parsing**: Decodes account email dynamically from your Codex `auth.json` token.
 * 📊 **Live Quota & Usage Display**: Shows plan type and remaining usage % next to accounts.
 * ⚡ **Smart 5-Minute Quota Cache**: Caches usage metrics locally in `~/.codex-accounts/.quota_cache.json` for instant UI execution.
 * 🔄 **Cache Bypass**: Supports `--no-cache` (`-n`) to force refreshing live quota on demand.
 * ➕ **Seamless New Session Flow**: Backs up your active session so you can log into a new account with zero setup.
-* 🎯 **Interactive TUI Selector**: Select saved accounts with arrow keys using `inquire`.
-* 🛠️ **CLI Subcommands**: Full CLI support for scripting (`cxm switch`, `cxm new`, `cxm save`, `cxm list`, `cxm remove`).
+* 🎯 **Interactive TUI Selector**: Select saved accounts or jump into sessions using `inquire`.
+* 🛠️ **CLI Subcommands**: Full CLI support for scripting (`cxm switch`, `cxm sessions`, `cxm new`, `cxm save`, `cxm list`, `cxm remove`).
 * 🐚 **Shell Autocompletions**: Native autocompletion support for `bash`, `zsh`, and `fish`.
 * 📦 **Single Standalone Binary**: Zero runtime dependencies.
 
@@ -74,13 +75,20 @@ cxm completions fish > ~/.config/fish/completions/cxm.fish
 ## 🚀 Usage
 
 ### 1. Interactive Switcher (Default)
-Run `cxm` with no arguments to open the interactive selection menu:
+Run `cxm` with no arguments to open the interactive menu:
 
 ```bash
 cxm
 ```
 
-### 2. Bypass Quota Cache
+### 2. Resume Previous Sessions
+Browse previous chat sessions and resume instantly:
+
+```bash
+cxm sessions # (or cxm s)
+```
+
+### 3. Bypass Quota Cache
 Force fetching fresh live quota directly from the backend API:
 
 ```bash
@@ -89,7 +97,7 @@ cxm --no-cache
 cxm list --no-cache
 ```
 
-### 3. Log in to a New Account
+### 4. Log in to a New Account
 Back up your current session and prepare a fresh session to log into a new account:
 
 ```bash
@@ -97,7 +105,7 @@ cxm new # (or cxm add)
 ```
 Then log in via `codex`, and run `cxm save` (or `cxm`) when finished to auto-detect and save your new account!
 
-### 4. Save Current Account Session
+### 5. Save Current Account Session
 Save your currently active Codex login session:
 
 ```bash
@@ -108,21 +116,21 @@ cxm save
 cxm save work-account
 ```
 
-### 5. Switch Account
+### 6. Switch Account
 Switch to a saved account directly by name or email:
 
 ```bash
 cxm switch user@example.com
 ```
 
-### 6. List Accounts
-List all saved account profiles:
+### 7. List Accounts
+List all saved account profiles with quota and cache timestamps:
 
 ```bash
 cxm list
 ```
 
-### 7. Remove Account
+### 8. Remove Account
 Delete a saved account profile:
 
 ```bash
