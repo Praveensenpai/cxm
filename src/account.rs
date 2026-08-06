@@ -1,4 +1,4 @@
-use crate::quota::{fetch_quota_cached, load_quota_cache, QuotaInfo};
+use crate::quota::{clear_quota_cache, fetch_quota_cached, load_quota_cache, QuotaInfo};
 use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
@@ -106,6 +106,7 @@ pub fn save_current_account(alias: Option<&str>) -> Result<String> {
         .with_context(|| format!("Failed to save account file to {:?}", target_path))?;
 
     set_current_active_account(&account_name)?;
+    clear_quota_cache();
     Ok(account_name)
 }
 

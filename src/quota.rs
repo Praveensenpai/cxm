@@ -89,6 +89,12 @@ pub fn save_quota_cache(cache: &HashMap<String, QuotaInfo>) {
     }
 }
 
+pub fn clear_quota_cache() {
+    if let Some(path) = get_cache_file_path() {
+        let _ = fs::remove_file(path);
+    }
+}
+
 pub fn fetch_quota_cached(
     account_key: &str,
     auth_path: &Path,

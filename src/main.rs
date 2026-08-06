@@ -14,7 +14,7 @@ use std::io;
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
 #[command(disable_version_flag = true)]
-#[command(version = "0.6.11")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     /// Show the application version
