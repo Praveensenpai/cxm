@@ -8,24 +8,14 @@
 
 ## ⚡ Features
 
+* 🖥️ **Interactive Ratatui TUI Dashboard**: High-performance full-screen TUI dashboard.
 * 🚀 **Instant Account Switching**: Switch Codex accounts in <10ms without logging out.
-* 💬 **Session Explorer**: Browse and jump directly into previous Codex sessions via `codex resume`.
-* 🔑 **Automatic JWT Parsing**: Decodes account email dynamically from your Codex `auth.json` token.
+* 💬 **Embedded Session Explorer**: Press `[s]` or `[Tab]` inside the TUI dashboard to browse and jump directly into previous Codex sessions (`codex resume`).
 * 📊 **Live Quota & Usage Display**: Shows plan type and remaining usage % next to accounts.
-* ⚡ **Smart 5-Minute Quota Cache**: Caches usage metrics locally in `~/.codex-accounts/.quota_cache.json` for instant UI execution.
-* 🔄 **Cache Bypass**: Supports `--no-cache` (`-n`) to force refreshing live quota on demand.
-* ➕ **Seamless New Session Flow**: Backs up your active session so you can log into a new account with zero setup.
-* 🗑️ **In-Menu Account Deletion**: Safely delete unused account profiles directly from the interactive TUI menu.
-* 🖥️ **Beautiful Interactive Ratatui TUI**: High-performance full-screen TUI dashboard powered by `ratatui`.
-* 🚀 **Instant Account Switching**: Switch Codex accounts in <10ms without logging out.
-* 💬 **Embedded Session Explorer**: Press `[s]` or `[Tab]` inside the TUI dashboard to browse and jump directly into previous Codex sessions.
-* 🔑 **Automatic JWT Parsing**: Decodes account email dynamically from your Codex `auth.json` token.
-* 📊 **Live Quota & Usage Display**: Shows plan type and remaining usage % next to accounts.
-* ⚡ **Smart 5-Minute Quota Cache**: Caches usage metrics locally in `~/.codex-accounts/.quota_cache.json` for instant UI execution.
-* 🔄 **Cache Bypass**: Supports `--no-cache` (`-n`) to force refreshing live quota on demand (`[r]` inside TUI).
-* ➕ **Seamless New Session Flow**: Backs up your active session so you can log into a new account with zero setup.
+* ⚡ **Non-Blocking Background Refresh**: Press `[r]` inside TUI to fetch fresh live quota metrics asynchronously with 15s debouncing.
+* ➕ **Seamless New Session Flow**: Press `[n]` inside TUI to back up your active session and log into a new account.
 * 🗑️ **In-Menu Account Deletion**: Safely delete unused account profiles directly from the interactive TUI menu (`[d]`).
-* 🛠️ **CLI Subcommands**: Streamlined CLI support for scripting (`cxm <account>`, `cxm new`, `cxm save`, `cxm list`).
+* 🛠️ **CLI Subcommands**: Streamlined CLI support for direct account switching (`cxm <account>`) and saving sessions (`cxm save`).
 * 🐚 **Shell Autocompletions**: Native autocompletion support for `bash`, `zsh`, and `fish`.
 * 📦 **Single Standalone Binary**: Zero runtime dependencies.
 
@@ -92,7 +82,7 @@ cxm
 - **`Space` / `v`**: Toggle session detail preview panel
 - **`n`**: Log into a new account
 - **`d`**: Delete selected account
-- **`r`**: Refresh live quota metrics (`--no-cache`)
+- **`r`**: Refresh live quota metrics (background thread, 15s debouncing)
 - **`/`**: Live search & filter
 - **`q` or `Esc`**: Quit TUI
 
@@ -103,34 +93,11 @@ Switch to a saved account directly by name or email:
 cxm user@example.com
 ```
 
-### 3. Bypass Quota Cache
-Force fetching fresh live quota directly from the backend API:
-
-```bash
-cxm -n
-# or
-cxm list --no-cache
-```
-
-### 4. Log in to a New Account
-Back up your current session and prepare a fresh session to log into a new account:
-
-```bash
-cxm new # (or cxm add)
-```
-
-### 5. Save Current Account Session
+### 3. Save Current Account Session
 Save your currently active Codex login session:
 
 ```bash
 cxm save
-```
-
-### 6. List Accounts
-List all saved account profiles with quota and cache timestamps:
-
-```bash
-cxm list
 ```
 
 ---
