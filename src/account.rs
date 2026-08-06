@@ -1,4 +1,4 @@
-use crate::quota::{fetch_quota_cached, QuotaInfo};
+use crate::quota::{fetch_quota_cached, load_quota_cache, QuotaInfo};
 use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
@@ -109,7 +109,10 @@ pub fn save_current_account(alias: Option<&str>) -> Result<String> {
     Ok(account_name)
 }
 
-pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
+fn list_accounts_with<F>(mut quota_for: F) -> Result<Vec<AccountInfo>>
+where
+    F: FnMut(&str, &PathBuf) -> Option<QuotaInfo>,
+{
     let accounts_dir = get_accounts_dir()?;
     if !accounts_dir.exists() {
         return Ok(Vec::new());
@@ -128,7 +131,7 @@ pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
                 }
                 let email = extract_email_from_auth_file(&path);
                 let is_active = active_account.as_deref() == Some(stem);
-                let quota = fetch_quota_cached(stem, &path, no_cache).ok();
+                let quota = quota_for(stem, &path);
                 accounts.push(AccountInfo {
                     name: stem.to_string(),
                     _email: email,
@@ -146,6 +149,16 @@ pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
         rem_b.cmp(&rem_a).then_with(|| a.name.cmp(&b.name))
     });
     Ok(accounts)
+}
+
+pub fn list_accounts(no_cache: bool) -> Result<Vec<AccountInfo>> {
+    list_accounts_with(|stem, path| fetch_quota_cached(stem, path, no_cache).ok())
+}
+
+/// Load account rows and only non-expired quota data from disk.
+pub fn list_accounts_cached() -> Result<Vec<AccountInfo>> {
+    let cache = load_quota_cache();
+    list_accounts_with(|stem, _| cache.get(stem).filter(|quota| !quota.is_expired()).cloned())
 }
 
 pub fn switch_account(account_name: &str) -> Result<()> {

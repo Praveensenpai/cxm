@@ -1,5 +1,6 @@
 use crate::account::{
-    interactive_remove_account, list_accounts, prepare_new_session, switch_account,
+    interactive_remove_account, list_accounts, list_accounts_cached, prepare_new_session,
+    switch_account,
 };
 use crate::session::scan_codex_sessions;
 use anyhow::Result;
@@ -46,25 +47,37 @@ pub fn run_accounts_tui() -> Result<()> {
     let mut state = TableState::default();
     let mut filter = String::new();
     let mut searching = false;
-    let mut is_refreshing = false;
+    let mut is_refreshing = true;
     let mut last_refresh_time: Option<Instant> = None;
     let mut cooldown_msg: Option<(String, Instant)> = None;
 
-    let mut accounts = list_accounts(false)?;
+    let mut accounts = Vec::new();
 
     let (tx, rx): (
-        Sender<Vec<crate::account::AccountInfo>>,
-        Receiver<Vec<crate::account::AccountInfo>>,
+        Sender<(Vec<crate::account::AccountInfo>, bool)>,
+        Receiver<(Vec<crate::account::AccountInfo>, bool)>,
     ) = channel();
 
     if !accounts.is_empty() {
         state.select(Some(0));
     }
 
+    // Load cache and live quotas away from the UI thread. The cache result is
+    // displayed first, followed by the live result.
+    let initial_tx = tx.clone();
+    std::thread::spawn(move || {
+        let cached = list_accounts_cached().unwrap_or_default();
+        let _ = initial_tx.send((cached, false));
+        let fresh = list_accounts(true).unwrap_or_default();
+        let _ = initial_tx.send((fresh, true));
+    });
+
     let res = loop {
-        if let Ok(fresh_accounts) = rx.try_recv() {
+        if let Ok((fresh_accounts, is_fresh)) = rx.try_recv() {
             accounts = fresh_accounts;
-            is_refreshing = false;
+            if is_fresh {
+                is_refreshing = false;
+            }
             if state.selected().is_none() && !accounts.is_empty() {
                 state.select(Some(0));
             }
@@ -110,9 +123,14 @@ pub fn run_accounts_tui() -> Result<()> {
                 .block(Block::default().borders(Borders::ALL));
             f.render_widget(header, chunks[0]);
 
-            let rows: Vec<Row> = filtered_indices
-                .iter()
-                .map(|&idx| {
+            let rows: Vec<Row> = if accounts.is_empty() {
+                vec![Row::new(vec![
+                    "".to_string(),
+                    "⏳ Loading accounts…".to_string(),
+                    "Please wait".to_string(),
+                ])]
+            } else {
+                filtered_indices.iter().map(|&idx| {
                     let acc = &accounts[idx];
                     let status = if acc.is_active {
                         "* ACTIVE".to_string()
@@ -127,8 +145,8 @@ pub fn run_accounts_tui() -> Result<()> {
                         .unwrap_or_else(|| "[quota unavailable]".to_string());
 
                     Row::new(vec![status, acc.name.clone(), quota_str])
-                })
-                .collect();
+                }).collect()
+            };
 
             let table = Table::new(
                 rows,
@@ -235,7 +253,7 @@ pub fn run_accounts_tui() -> Result<()> {
                                     let tx_clone = tx.clone();
                                     std::thread::spawn(move || {
                                         if let Ok(fresh) = list_accounts(true) {
-                                            let _ = tx_clone.send(fresh);
+                                            let _ = tx_clone.send((fresh, true));
                                         }
                                     });
                                 }
@@ -245,7 +263,7 @@ pub fn run_accounts_tui() -> Result<()> {
                                 let tx_clone = tx.clone();
                                 std::thread::spawn(move || {
                                     if let Ok(fresh) = list_accounts(true) {
-                                        let _ = tx_clone.send(fresh);
+                                        let _ = tx_clone.send((fresh, true));
                                     }
                                 });
                             }
