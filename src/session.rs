@@ -1,22 +1,16 @@
 use anyhow::Result;
 use chrono::{DateTime, Local};
+use colored::*;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    cursor,
+    event::{self, Event, KeyCode, KeyModifiers},
+    execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
-};
-use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
-    Terminal,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::io::stdout;
+use std::io::{stdout, Write};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -28,34 +22,13 @@ struct HistoryLine {
 }
 
 #[derive(Debug, Clone)]
-pub struct CodexSession {
+pub struct CodexSessionInfo {
     pub session_id: String,
-    pub prompt: String,
+    pub short_id: String,
+    pub datetime: String,
     pub timestamp: u64,
-}
-
-impl CodexSession {
-    pub fn formatted_time(&self) -> String {
-        if self.timestamp == 0 {
-            return "unknown time".to_string();
-        }
-        let naive = DateTime::from_timestamp(self.timestamp as i64, 0);
-        match naive {
-            Some(utc) => {
-                let local: DateTime<Local> = DateTime::from(utc);
-                local.format("%Y-%m-%d %H:%M").to_string()
-            }
-            None => "unknown time".to_string(),
-        }
-    }
-
-    pub fn short_id(&self) -> String {
-        if self.session_id.len() >= 8 {
-            self.session_id[..8].to_string()
-        } else {
-            self.session_id.clone()
-        }
-    }
+    pub summary: String,
+    pub full_prompt: String,
 }
 
 pub fn get_history_file_path() -> Option<PathBuf> {
@@ -79,7 +52,7 @@ pub fn sanitize_prompt(raw: &str) -> String {
     }
 }
 
-pub fn scan_codex_sessions() -> Result<Vec<CodexSession>> {
+pub fn scan_codex_sessions() -> Result<Vec<CodexSessionInfo>> {
     let history_path = match get_history_file_path() {
         Some(p) if p.exists() => p,
         _ => return Ok(Vec::new()),
@@ -108,12 +81,31 @@ pub fn scan_codex_sessions() -> Result<Vec<CodexSession>> {
         }
     }
 
-    let mut sessions: Vec<CodexSession> = session_map
+    let mut sessions: Vec<CodexSessionInfo> = session_map
         .into_iter()
-        .map(|(session_id, (raw_prompt, timestamp))| CodexSession {
-            session_id,
-            prompt: sanitize_prompt(&raw_prompt),
-            timestamp,
+        .map(|(session_id, (raw_prompt, timestamp))| {
+            let short_id = if session_id.len() >= 8 {
+                session_id[..8].to_string()
+            } else {
+                session_id.clone()
+            };
+
+            let datetime = if timestamp > 0 {
+                DateTime::from_timestamp(timestamp as i64, 0)
+                    .map(|t| t.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            } else {
+                "Unknown".to_string()
+            };
+
+            CodexSessionInfo {
+                session_id,
+                short_id,
+                datetime,
+                timestamp,
+                summary: sanitize_prompt(&raw_prompt),
+                full_prompt: raw_prompt,
+            }
         })
         .collect();
 
@@ -124,172 +116,183 @@ pub fn scan_codex_sessions() -> Result<Vec<CodexSession>> {
 pub fn pick_and_resume_session() -> Result<()> {
     let sessions = scan_codex_sessions()?;
     if sessions.is_empty() {
-        println!("No Codex session history found.");
+        println!("{}", "No Codex session history found.".yellow());
         return Ok(());
     }
 
     enable_raw_mode()?;
-    stdout().execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout());
-    let mut terminal = Terminal::new(backend)?;
+    let mut out = stdout();
+    let _ = execute!(out, EnterAlternateScreen, cursor::Hide);
 
-    let mut selected_index = 0;
+    let mut selected_idx = 0;
     let mut search_query = String::new();
-    let mut is_searching = false;
+    let mut expanded_id: Option<String> = None;
 
-    let selected_session_id = loop {
-        let filtered: Vec<&CodexSession> = sessions
+    let result_session_opt = loop {
+        let (cols, term_rows) = crossterm::terminal::size().unwrap_or((80, 24));
+        let cols_usize = cols as usize;
+
+        let filtered: Vec<&CodexSessionInfo> = sessions
             .iter()
             .filter(|s| {
                 if search_query.is_empty() {
                     true
                 } else {
                     let q = search_query.to_lowercase();
-                    s.prompt.to_lowercase().contains(&q)
-                        || s.short_id().to_lowercase().contains(&q)
-                        || s.formatted_time().to_lowercase().contains(&q)
+                    s.summary.to_lowercase().contains(&q)
+                        || s.session_id.to_lowercase().contains(&q)
+                        || s.datetime.contains(&q)
                 }
             })
             .collect();
 
-        if selected_index >= filtered.len() && !filtered.is_empty() {
-            selected_index = filtered.len() - 1;
+        if selected_idx >= filtered.len() && !filtered.is_empty() {
+            selected_idx = filtered.len() - 1;
         }
 
-        terminal.draw(|f| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(5),
-                    Constraint::Length(if is_searching { 3 } else { 1 }),
-                ])
-                .split(f.area());
+        let _ = execute!(
+            out,
+            crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
+            crossterm::cursor::MoveTo(0, 0)
+        );
 
-            let header_cells = ["ID", "TIMESTAMP", "PROMPT / TITLE"]
-                .iter()
-                .map(|h| Cell::from(*h).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)));
-            let header = Row::new(header_cells)
-                .style(Style::default().bg(Color::Rgb(40, 42, 54)))
-                .height(1);
+        let count_str = format!("({}/{} sessions)", filtered.len(), sessions.len());
+        let sep = "─".repeat(cols_usize.min(120));
+        print!("\x1b[38;2;189;147;249m{}\x1b[0m\r\n", sep);
+        print!(
+            "\x1b[1m\x1b[38;2;139;233;253m🔍 Search Codex Session \x1b[38;2;98;114;164m{}\x1b[38;2;139;233;253m > \x1b[38;2;80;250;123m{}\x1b[0m\r\n",
+            count_str, search_query
+        );
+        print!("\x1b[38;2;98;114;164m[ ↑↓: Move | Space/v: Details | Enter: Resume | Esc: Exit ]\x1b[0m\r\n");
+        print!("\x1b[38;2;189;147;249m{}\x1b[0m\r\n\r\n", sep);
 
-            let rows: Vec<Row> = filtered
-                .iter()
-                .enumerate()
-                .map(|(i, s)| {
-                    let style = if i == selected_index {
-                        Style::default()
-                            .fg(Color::Rgb(255, 255, 255))
-                            .bg(Color::Rgb(98, 114, 164))
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(Color::Rgb(248, 248, 242))
-                    };
+        if filtered.is_empty() {
+            print!("  \x1b[38;2;255;85;85mNo matching sessions found.\x1b[0m\r\n");
+        } else {
+            let avail_height = (term_rows as usize).saturating_sub(6).max(3);
 
-                    Row::new(vec![
-                        Cell::from(Span::styled(s.short_id(), Style::default().fg(Color::Rgb(189, 147, 249)).add_modifier(Modifier::BOLD))),
-                        Cell::from(Span::styled(s.formatted_time(), Style::default().fg(Color::Rgb(241, 250, 140)))),
-                        Cell::from(s.prompt.clone()),
-                    ])
-                    .style(style)
-                })
-                .collect();
-
-            let title = format!(" 💬 Codex Session Explorer ({} sessions) ", filtered.len());
-            let table = Table::new(
-                rows,
-                [
-                    Constraint::Length(10),
-                    Constraint::Length(18),
-                    Constraint::Min(30),
-                ],
-            )
-            .header(header)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(title)
-                    .title_style(Style::default().fg(Color::Rgb(80, 250, 123)).add_modifier(Modifier::BOLD)),
-            );
-
-            f.render_widget(table, chunks[0]);
-
-            if is_searching {
-                let search_bar = Paragraph::new(format!("Search: {}_", search_query))
-                    .style(Style::default().fg(Color::Yellow))
-                    .block(Block::default().borders(Borders::ALL).title(" Filter Sessions "));
-                f.render_widget(search_bar, chunks[1]);
-            } else {
-                let help_text = if search_query.is_empty() {
-                    " [↑/↓/j/k] Navigate • [/] Filter • [Enter] Resume • [Esc/q] Quit "
+            let get_item_height = |idx: usize| -> usize {
+                let s = filtered[idx];
+                if expanded_id.as_ref() == Some(&s.session_id) {
+                    let p_lines = s.full_prompt.lines().take(6).count();
+                    1 + 3 + p_lines + 1
                 } else {
-                    " [↑/↓/j/k] Navigate • [/] Edit Filter • [Backspace] Clear • [Enter] Resume • [Esc] Quit "
-                };
-                let footer = Paragraph::new(help_text)
-                    .style(Style::default().fg(Color::DarkGray));
-                f.render_widget(footer, chunks[1]);
-            }
-        })?;
+                    1
+                }
+            };
 
-        if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    if is_searching {
-                        match key.code {
-                            KeyCode::Esc | KeyCode::Enter => {
-                                is_searching = false;
-                            }
-                            KeyCode::Backspace => {
-                                search_query.pop();
-                                selected_index = 0;
-                            }
-                            KeyCode::Char(c) => {
-                                search_query.push(c);
-                                selected_index = 0;
-                            }
-                            _ => {}
-                        }
-                    } else {
-                        match key.code {
-                            KeyCode::Char('q') | KeyCode::Esc => {
-                                break None;
-                            }
-                            KeyCode::Char('/') => {
-                                is_searching = true;
-                            }
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                if selected_index > 0 {
-                                    selected_index -= 1;
-                                }
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                if !filtered.is_empty() && selected_index < filtered.len() - 1 {
-                                    selected_index += 1;
-                                }
-                            }
-                            KeyCode::Enter => {
-                                if let Some(session) = filtered.get(selected_index) {
-                                    break Some(session.session_id.clone());
-                                }
-                            }
-                            KeyCode::Backspace => {
-                                search_query.clear();
-                                selected_index = 0;
-                            }
-                            _ => {}
+            let mut start_idx = selected_idx;
+            let mut h_acc = get_item_height(selected_idx);
+            while start_idx > 0 {
+                let prev_h = get_item_height(start_idx - 1);
+                if h_acc + prev_h > avail_height {
+                    break;
+                }
+                start_idx -= 1;
+                h_acc += prev_h;
+            }
+
+            let avail_prompt_width = cols_usize.saturating_sub(34).max(15);
+            let mut rendered_height = 0;
+
+            for idx in start_idx..filtered.len() {
+                let item_h = get_item_height(idx);
+                if rendered_height > 0 && rendered_height + item_h > avail_height {
+                    break;
+                }
+                rendered_height += item_h;
+
+                let s = filtered[idx];
+                let is_selected = idx == selected_idx;
+                let is_expanded = expanded_id.as_ref() == Some(&s.session_id);
+
+                let trunc_summary = if s.summary.chars().count() > avail_prompt_width {
+                    let text: String = s.summary.chars().take(avail_prompt_width.saturating_sub(3)).collect();
+                    format!("{}...", text)
+                } else {
+                    s.summary.clone()
+                };
+
+                if is_selected {
+                    print!(
+                        " \x1b[38;2;80;250;123m▶\x1b[0m \x1b[1m\x1b[38;2;139;233;253m{}\x1b[0m │ \x1b[38;2;255;121;198m{}\x1b[0m │ \x1b[1m\x1b[38;2;248;248;242m{}\x1b[0m\r\n",
+                        s.datetime, s.short_id, trunc_summary
+                    );
+                } else {
+                    print!(
+                        "   \x1b[38;2;98;114;164m{}\x1b[0m │ \x1b[38;2;98;114;164m{}\x1b[0m │ \x1b[38;2;98;114;164m{}\x1b[0m\r\n",
+                        s.datetime, s.short_id, trunc_summary
+                    );
+                }
+
+                if is_expanded {
+                    let box_w = cols_usize.saturating_sub(6).min(100);
+                    let top_bar = format!("┌─ 🔍 FULL SESSION DETAILS {}", "─".repeat(box_w.saturating_sub(27)));
+                    print!("    \x1b[38;2;255;184;108m{}\x1b[0m\r\n", top_bar);
+                    print!("    \x1b[38;2;255;184;108m│\x1b[0m \x1b[1mFull Session ID:\x1b[0m \x1b[38;2;255;121;198m{}\x1b[0m\r\n", s.session_id);
+                    print!("    \x1b[38;2;255;184;108m│\x1b[0m \x1b[1mDate:\x1b[0m {}\r\n", s.datetime);
+                    print!("    \x1b[38;2;255;184;108m│\x1b[0m \x1b[1mPrompt:\x1b[0m\r\n");
+                    for p_line in s.full_prompt.lines().take(6) {
+                        print!("    \x1b[38;2;255;184;108m│\x1b[0m   {}\r\n", p_line);
+                    }
+                    let bot_bar = "└".to_string() + &"─".repeat(box_w.saturating_sub(1));
+                    print!("    \x1b[38;2;255;184;108m{}\x1b[0m\r\n", bot_bar);
+                }
+            }
+        }
+
+        let _ = out.flush();
+
+        if let Ok(Event::Key(key_event)) = event::read() {
+            match key_event.code {
+                KeyCode::Esc => break None,
+                KeyCode::Char('q') if key_event.modifiers.contains(KeyModifiers::CONTROL) => break None,
+                KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => break None,
+                KeyCode::Enter => {
+                    if !filtered.is_empty() {
+                        break Some(filtered[selected_idx].clone());
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if selected_idx > 0 {
+                        selected_idx -= 1;
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !filtered.is_empty() && selected_idx + 1 < filtered.len() {
+                        selected_idx += 1;
+                    }
+                }
+                KeyCode::Char(' ') | KeyCode::Tab | KeyCode::Char('v') => {
+                    if !filtered.is_empty() {
+                        let cur_id = &filtered[selected_idx].session_id;
+                        if expanded_id.as_ref() == Some(cur_id) {
+                            expanded_id = None;
+                        } else {
+                            expanded_id = Some(cur_id.clone());
                         }
                     }
                 }
+                KeyCode::Backspace => {
+                    search_query.pop();
+                    selected_idx = 0;
+                }
+                KeyCode::Char(c) => {
+                    search_query.push(c);
+                    selected_idx = 0;
+                }
+                _ => {}
             }
         }
     };
 
-    disable_raw_mode()?;
-    stdout().execute(LeaveAlternateScreen)?;
+    let _ = execute!(out, cursor::Show, LeaveAlternateScreen);
+    let _ = disable_raw_mode();
 
-    if let Some(session_id) = selected_session_id {
-        println!("🚀 Resuming Codex session {}...", session_id);
+    if let Some(selected_session) = result_session_opt {
+        println!("🚀 Resuming Codex session {}...", selected_session.session_id.cyan());
         let mut child = Command::new("codex")
-            .args(["resume", &session_id])
+            .args(["resume", &selected_session.session_id])
             .spawn()?;
         let _ = child.wait();
     }
