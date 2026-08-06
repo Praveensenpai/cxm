@@ -14,7 +14,7 @@ use std::io;
 #[derive(Parser)]
 #[command(name = "cxm")]
 #[command(author = "Praveensenpai")]
-#[command(version = "0.6.0")]
+#[command(version = "0.6.1")]
 #[command(about = "Codex Account Manager & Instant Switcher", long_about = None)]
 struct Cli {
     /// Account name or email to switch to directly

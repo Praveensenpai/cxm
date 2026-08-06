@@ -36,15 +36,53 @@ pub fn get_history_file_path() -> Option<PathBuf> {
     Some(home.join(".codex").join("history.jsonl"))
 }
 
-pub fn sanitize_prompt(raw: &str) -> String {
-    let cleaned = raw
+pub fn clean_user_text(raw: &str) -> String {
+    let mut s = raw.to_string();
+    let tags = [
+        "<USER_REQUEST>",
+        "</USER_REQUEST>",
+        "<USER_SETTINGS_CHANGE>",
+        "</USER_SETTINGS_CHANGE>",
+        "<ADDITIONAL_METADATA>",
+        "</ADDITIONAL_METADATA>",
+        "<EPHEMERAL_MESSAGE>",
+        "</EPHEMERAL_MESSAGE>",
+    ];
+    for tag in tags {
+        s = s.replace(tag, "");
+    }
+
+    let cleaned = s
         .lines()
         .map(|l| l.trim())
-        .filter(|l| !l.is_empty() && !l.starts_with("[Image #"))
+        .filter(|l| {
+            !l.is_empty()
+                && !l.starts_with('<')
+                && !l.starts_with("The current local time is:")
+                && !l.starts_with("The user changed setting")
+                && !l.starts_with("The user has uploaded")
+                && !l.starts_with("┌─")
+                && !l.starts_with("└─")
+                && !l.starts_with('│')
+                && !l.starts_with("~ ❯")
+                && !l.starts_with("~ ✗")
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    cleaned.trim().to_string()
+}
+
+pub fn sanitize_summary(raw: &str) -> String {
+    let cleaned = clean_user_text(raw);
+    let single_line = cleaned
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
         .collect::<Vec<&str>>()
         .join(" ");
 
-    let trimmed = cleaned.trim();
+    let trimmed = single_line.trim();
     if trimmed.is_empty() {
         "New Conversation".to_string()
     } else {
@@ -72,7 +110,7 @@ pub fn scan_codex_sessions() -> Result<Vec<CodexSessionInfo>> {
                     entry.1 = ts;
                 }
                 if entry.0 == "." || entry.0.starts_with("[Image #") {
-                    let sanitized = sanitize_prompt(&text);
+                    let sanitized = sanitize_summary(&text);
                     if sanitized != "New Conversation" {
                         entry.0 = text;
                     }
@@ -98,13 +136,15 @@ pub fn scan_codex_sessions() -> Result<Vec<CodexSessionInfo>> {
                 "Unknown".to_string()
             };
 
+            let full_prompt = clean_user_text(&raw_prompt);
+
             CodexSessionInfo {
                 session_id,
                 short_id,
                 datetime,
                 timestamp,
-                summary: sanitize_prompt(&raw_prompt),
-                full_prompt: raw_prompt,
+                summary: sanitize_summary(&raw_prompt),
+                full_prompt: if full_prompt.is_empty() { "New Conversation".to_string() } else { full_prompt },
             }
         })
         .collect();
