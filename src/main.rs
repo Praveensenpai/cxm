@@ -1,9 +1,10 @@
 mod account;
+mod paths;
 mod quota;
 mod session;
 mod ui;
 
-use account::*;
+use account::AccountStore;
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
@@ -50,16 +51,22 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(target) = cli.account {
-        return switch_account(&target);
+        let account = AccountStore::for_current_user()?.switch(&target)?;
+        println!(
+            "{} Switched to account: {}",
+            "✔".green().bold(),
+            account.to_string().cyan().bold()
+        );
+        return Ok(());
     }
 
     match cli.command {
         Some(Commands::Save { alias }) => {
-            let name = save_current_account(alias.as_deref())?;
+            let name = AccountStore::for_current_user()?.save_active(alias.as_deref())?;
             println!(
                 "{} Saved current Codex account as '{}'",
                 "✔".green().bold(),
-                name.bold().cyan()
+                name.to_string().bold().cyan()
             );
         }
         Some(Commands::Completions { shell }) => {
